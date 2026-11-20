@@ -1,5 +1,5 @@
 const prefix = 'xuanos-mobile:' + self.registration.scope + ':';
-const version = prefix + 'v1';
+const version = prefix + 'v2';
 const assets = [
   'index.html', 'mobile.css', 'mobile.js', 'mark.svg', 'orbit.svg',
   'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'touch-icon.png'
@@ -10,7 +10,7 @@ const entry = new URL('index.html', self.registration.scope).href;
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(version).then(cache => cache.addAll(
     [...urls].map(url => new Request(url, { cache: 'reload' }))
-  )));
+  )).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', event => {
