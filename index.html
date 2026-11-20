@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#060d16">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <title>XuanOS Mobile 5.0 — Spatial Fusion OS</title>
+  <title>XuanOS Mobile 5.1 — True Spatial Experience</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="mark.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="touch-icon.png">
@@ -31,6 +31,7 @@
       <span class="orbit-plane"></span><span class="orbit-plane"></span>
       <img class="orbit" src="orbit.svg" alt="" draggable="false">
       <span class="orbit-sweep"></span>
+      <span class="orbit-particles"></span>
       <img class="reactor-mark" src="mark.svg" alt="" draggable="false">
     </span>
   </template>
@@ -45,7 +46,7 @@
   </div>
   <div id="shell" class="shell">
     <header class="masthead">
-      <div class="brand"><img src="mark.svg" alt=""><div><strong>XuanOS <span>Mobile 5.0</span></strong><small>SPATIAL FUSION OS</small></div></div>
+      <div class="brand"><img src="mark.svg" alt=""><div><strong>XuanOS <span>Mobile 5.1</span></strong><small>TRUE SPATIAL EXPERIENCE</small></div></div>
       <span class="system-pill"><i></i><span id="network-badge">Checking connection</span></span>
     </header>
     <main>
@@ -72,6 +73,7 @@
         <header class="spatial-header">
           <div><h1 id="spatial-title" tabindex="-1">Spatial Workspace</h1><p id="scene-help">Drag or pinch the focused window’s title bar.</p></div>
           <div class="actions workspace-actions">
+            <button type="button" class="quiet" id="organized-toggle" aria-pressed="false">Organized Layout</button>
             <button type="button" class="quiet" id="overview-toggle" aria-pressed="false">Overview</button>
             <details class="workspace-menu" id="workspace-menu">
               <summary>Layout</summary>
