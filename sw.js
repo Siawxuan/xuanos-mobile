@@ -1,5 +1,5 @@
 const prefix = 'xuanos-mobile:' + self.registration.scope + ':';
-const version = prefix + 'v2';
+const version = prefix + 'v3';
 const assets = [
   'index.html', 'mobile.css', 'mobile.js', 'mark.svg', 'orbit.svg',
   'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'touch-icon.png'

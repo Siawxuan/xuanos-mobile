@@ -11,10 +11,11 @@ const modules = {
 const windowOrder = ['clock', 'notifications', 'status', 'ai'];
 const arranged = { x: null, y: null, scale: 1 };
 const sampleNotes = [
-  { id: 'welcome', title: 'Welcome to Spatial Edition', text: 'Open the workspace to arrange your floating panels.' },
+  { id: 'welcome', title: 'Welcome to Spatial Fusion', text: 'Open the workspace to arrange your floating windows.' },
   { id: 'gesture', title: 'Workspace controls', text: 'Hold a panel title to drag it, or use two fingers on the title to resize.' }
 ];
-const preferences = { motion: true, effects: 75, glass: 45, depth: 65, sensitivity: 55, mode: 'home' };
+const visualDefaults = { motion: true, effects: 75, glass: 45, depth: 65, sensitivity: 55 };
+const preferences = { ...visualDefaults, mode: 'home' };
 const sliders = { effects: 'Effects intensity', glass: 'Glass transparency', depth: 'Depth intensity', sensitivity: 'Motion sensitivity' };
 const storageKey = 'xuanos-mobile-v1';
 let saved = {};
@@ -35,8 +36,8 @@ let route = null;
 let returnRoute = preferences.mode;
 let activePanel = null;
 let expandedPanel = null;
+let overview = typeof saved.overview === 'boolean' ? saved.overview : reducedMotion.matches;
 let stageGeometry;
-let topLayer = 0;
 let introTimer;
 let workerError = false;
 let offlineReady = false;
@@ -44,7 +45,7 @@ let offlineReady = false;
 function persist() {
   try {
     const positions = Object.fromEntries(Object.entries(panels).map(([id, panel]) => [id, panel.state]));
-    localStorage.setItem(storageKey, JSON.stringify({ layoutVersion: 2, preferences, notes: noteStates, panels: positions }));
+    localStorage.setItem(storageKey, JSON.stringify({ layoutVersion: 3, overview, focus: activePanel, preferences, notes: noteStates, panels: positions }));
   } catch { /* Changes still apply for this session. */ }
 }
 
@@ -53,10 +54,12 @@ function applyPreferences() {
   const style = document.documentElement.style;
   style.setProperty('--fx', preferences.effects / 100);
   style.setProperty('--blur', (preferences.effects * .18) + 'px');
-  style.setProperty('--glass-alpha', 1 - preferences.glass * .0024);
+  style.setProperty('--glass-alpha', .99 - preferences.glass * .0025);
   style.setProperty('--depth', preferences.depth / 100);
   style.setProperty('--orbit-distance', (preferences.sensitivity * .12) + 'px');
   stage.style.removeProperty('--parallax');
+  $('core-toggle').style.removeProperty('--pitch');
+  $('core-toggle').style.removeProperty('--yaw');
 }
 
 const fullClock = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit', second: '2-digit' });
@@ -83,12 +86,13 @@ function settingsMarkup() {
   return `<div class="settings-status"><span>Current mode<strong>${preferences.mode === 'spatial' ? 'Spatial Workspace' : 'Home'}</strong></span>
     <span>Display mode<strong data-display></strong></span><span>Offline shell<strong data-offline></strong></span></div>
     <div class="settings-form">
-    <h2>Motion and glass</h2>
+    <section class="control-group"><div class="settings-preview"><h2>Motion and glass</h2><div data-core aria-hidden="true"></div></div>
     <label><span>Animations</span><input id="motion" type="checkbox" ${preferences.motion ? 'checked' : ''}></label>
-    ${Object.entries(sliders).map(([key, label]) => `<label><span>${label} <output id="${key}-value" for="${key}">${preferences[key]}%</output></span><input id="${key}" type="range" min="0" max="100" step="5" value="${preferences[key]}"></label>`).join('')}
-    <h2>Workspace</h2>
+    ${Object.entries(sliders).map(([key, label]) => `<label><span>${label}</span><input id="${key}" type="range" min="0" max="100" step="5" value="${preferences[key]}"><output id="${key}-value" for="${key}">${preferences[key]}%</output></label>`).join('')}
+    <button class="quiet" data-action="defaults">Restore Visual Defaults</button></section>
+    <section class="control-group"><h2>Workspace</h2>
     <div class="actions"><button class="quiet" data-route="home">Switch to Home</button><button class="quiet" data-route="spatial">Switch to Spatial</button></div>
-    <div class="actions"><button class="quiet" data-action="reset">Reset Workspace</button><button class="quiet" data-action="replay">Replay Startup</button></div>
+    <div class="actions"><button class="quiet" data-action="reset">Reset Workspace</button><button class="quiet" data-action="replay">Replay Startup</button></div></section>
   </div>`;
 }
 
@@ -108,11 +112,12 @@ function moduleMarkup(id) {
   switch (id) {
     case 'clock': return '<time class="readout"></time><p class="subtle" data-date></p>';
     case 'notifications': return notificationMarkup();
-    case 'ai': return '<div class="ai-image">' + icon('ai') + '</div><p class="subtle">Reserved for future AI integration.</p>';
+    case 'ai': return '<div class="ai-image">' + icon('ai') + '</div><p class="subtle">AI Core is reserved for a future integration.</p>';
     case 'settings': return settingsMarkup();
     case 'status':
       return '<dl class="status-list"><div><dt>Network hint</dt><dd data-network></dd></div>' +
-        '<div><dt>Display mode</dt><dd data-display></dd></div><div><dt>Offline shell</dt><dd data-offline></dd></div></dl>';
+        '<div><dt>Display mode</dt><dd data-display></dd></div><div><dt>Offline shell</dt><dd data-offline></dd></div></dl>' +
+        '<p class="subtle diagnostics-note">CPU and memory usage, storage hardware, and network throughput are unavailable to this app.</p>';
   }
 }
 
@@ -140,6 +145,7 @@ function navigate(next, moveFocus = true) {
     persist();
   }
   route = next;
+  if (next !== 'home') toggleCore(false);
   $('shell').dataset.route = next;
   $('home').hidden = next !== 'home';
   $('spatial').hidden = next !== 'spatial';
@@ -149,6 +155,7 @@ function navigate(next, moveFocus = true) {
     $('detail-icon').innerHTML = '<span class="tile-icon">' + icon(modules[next].icon) + '</span>';
     $('detail-title').textContent = modules[next].name;
     $('detail-content').innerHTML = moduleMarkup(next);
+    mountCores($('detail-content'));
   }
   document.querySelectorAll('.dock button').forEach(button => {
     if (button.dataset.route === next) button.setAttribute('aria-current', 'page');
@@ -199,7 +206,7 @@ function startIntro() {
 
 function initialPanelState(id) {
   const state = saved.panels?.[id];
-  const custom = saved.layoutVersion === 2 && Number.isFinite(state?.x) && Number.isFinite(state?.y);
+  const custom = saved.layoutVersion >= 2 && Number.isFinite(state?.x) && Number.isFinite(state?.y);
   return {
     x: custom ? clamp(state.x, 0, 1) : null,
     y: custom ? clamp(state.y, 0, 1) : null,
@@ -214,43 +221,45 @@ function updatePanelLabels() {
     panel.node.toggleAttribute('data-focused', id === activePanel);
     panel.launcher.setAttribute('aria-pressed', String(id === activePanel));
     panel.launcher.classList.toggle('is-closed', panel.state.closed);
-    panel.launcher.setAttribute('aria-label', (panel.state.closed ? 'Reopen ' : 'Focus ') + panel.label);
+    panel.launcher.classList.toggle('is-minimized', panel.state.collapsed);
+    panel.launcher.setAttribute('aria-label', (panel.state.closed ? 'Reopen ' : panel.state.collapsed ? 'Restore ' : 'Focus ') + panel.label);
   });
 }
 
 function focusPanel(id) {
   if (expandedPanel && expandedPanel !== id) setExpanded(expandedPanel, false);
-  if (activePanel === id) return;
   activePanel = id;
-  panels[id].node.style.zIndex = ++topLayer;
+  layoutPanels();
   updatePanelLabels();
 }
 
 function measurePanel(panel) {
   const { node, state } = panel;
-  const { width, height, padding, columnWidth, rowHeight } = stageGeometry;
+  const { width, height, padding } = stageGeometry;
   const expanded = expandedPanel === panel.id;
   const wide = width - padding * 2;
-  const maxScale = Math.min(1.5, wide / columnWidth);
+  const tall = height - padding * 2;
+  const baseWidth = Math.min(495, Math.round(wide * .87));
+  const baseHeight = Math.min(335, Math.round(tall * (width < 540 && tall > 310 ? .68 : .81)));
+  const maxScale = Math.min(1.5, Math.max(1, Math.max(wide / baseWidth, tall / baseHeight)));
   const scale = clamp(state.scale, .72, maxScale);
-  const panelWidth = expanded ? Math.min(wide, 660) : Math.min(wide, Math.max(208, Math.round(columnWidth * scale)));
-  const panelHeight = expanded ? Math.min(420, Math.max(220, main.clientHeight * .78), height - padding * 2) :
-    Math.min(height - padding * 2, Math.round(rowHeight * scale));
+  const panelWidth = expanded ? Math.min(wide, 760) : Math.min(wide, Math.max(216, Math.round(baseWidth * scale)));
+  const panelHeight = expanded ? tall : Math.min(tall, Math.max(126, Math.round(baseHeight * scale)));
   node.style.setProperty('--panel-width', panelWidth + 'px');
   node.style.setProperty('--panel-height', panelHeight + 'px');
   return {
     scale,
     maxScale,
     width: Math.max(0, wide - panelWidth),
-    height: Math.max(0, height - padding * 2 - node.offsetHeight)
+    height: Math.max(0, tall - panelHeight)
   };
 }
 
 function placePanel(panel, bounds = measurePanel(panel)) {
   const { padding } = stageGeometry;
   const expanded = expandedPanel === panel.id;
-  const left = expanded ? bounds.width / 2 : panel.state.x === null ? panel.slot.x : panel.state.x * bounds.width;
-  const top = expanded || panel.state.y === null ? panel.slot.y : panel.state.y * bounds.height;
+  const left = bounds.width * (expanded ? .5 : panel.state.x ?? .5);
+  const top = bounds.height * (expanded ? .5 : panel.state.y ?? (stageGeometry.width < 540 ? .84 : .55));
   panel.left = padding + clamp(left, 0, bounds.width);
   panel.top = padding + clamp(top, 0, bounds.height);
   panel.node.style.setProperty('--x', panel.left + 'px');
@@ -260,38 +269,59 @@ function placePanel(panel, bounds = measurePanel(panel)) {
 function layoutPanels() {
   if (route !== 'spatial') return;
   const visible = Object.values(panels).filter(panel => !panel.state.closed);
-  const width = stage.clientWidth;
-  const columns = width >= 540 ? 2 : 1;
-  const padding = width >= 540 ? 20 : 12;
-  const gap = 12;
-  const compact = columns === 2 && main.clientHeight < 400;
-  const rowHeight = columns === 2 ? (compact ? 152 : 188) : 156;
-  const coreHeight = columns === 2 ? (compact ? 28 : 112) : 92;
-  const cellWidth = Math.floor((width - padding * 2 - gap * (columns - 1)) / columns);
-  const columnWidth = columns === 1 ? cellWidth - 28 : cellWidth;
-  const rows = Math.ceil(visible.length / columns);
-  const height = Math.max(expandedPanel ? 354 : 0, coreHeight + padding * 2 + rows * (rowHeight + gap) - (rows ? gap : 0));
+  const front = visible.find(panel => panel.id === activePanel && !panel.state.collapsed) ??
+    visible.find(panel => !panel.state.collapsed);
+  activePanel = front?.id ?? null;
+  const rear = visible.filter(panel => panel !== front);
+  stage.toggleAttribute('data-overview', overview);
+  $('stage-empty').hidden = overview ? visible.length !== 0 : Boolean(front);
+  $('stage-empty').firstElementChild.textContent = visible.length ? 'All windows are minimized.' : 'No windows are open.';
+  const height = clamp(main.clientHeight - stage.offsetTop - 14, 238, 650);
   stage.style.setProperty('--stage-size', height + 'px');
-  stage.toggleAttribute('data-compact', compact);
-  stageGeometry = { width, height: stage.clientHeight, padding, columnWidth, rowHeight };
-  visible.forEach((panel, index) => {
-    panel.slot = {
-      x: (index % columns) * (cellWidth + gap) + (cellWidth - columnWidth) / 2,
-      y: coreHeight + Math.floor(index / columns) * (rowHeight + gap)
-    };
-    if (!panel.pointers.size) placePanel(panel);
+  const width = stage.clientWidth;
+  const padding = width > 600 ? 18 : 10;
+  const rail = rear.length ? 61 : 0;
+  stageGeometry = { width, height: stage.clientHeight - rail, padding };
+  const slotWidth = Math.min(164, Math.floor((width - padding * 2 - Math.max(0, rear.length - 1) * 6) / Math.max(1, rear.length)));
+  const groupWidth = slotWidth * rear.length + Math.max(0, rear.length - 1) * 6;
+  rear.forEach((panel, index) => {
+    const offset = index - (rear.length - 1) / 2;
+    panel.node.dataset.plane = offset === 0 ? 'middle' : 'far';
+    panel.node.style.setProperty('--lean', (-offset * 7) + 'deg');
+    panel.node.style.setProperty('--panel-width', slotWidth + 'px');
+    panel.node.style.setProperty('--x', (Math.round((width - groupWidth) / 2) + index * (slotWidth + 6)) + 'px');
+    panel.node.style.setProperty('--y', (stage.clientHeight - (offset === 0 ? 53 : 58)) + 'px');
   });
+  if (front) {
+    front.node.dataset.plane = 'near';
+    if (!overview && !front.pointers.size) placePanel(front);
+  }
+  for (const panel of visible) {
+    const preview = panel !== front && !overview;
+    panel.chrome.hidden = preview;
+    panel.content.hidden = preview || panel.state.collapsed;
+    panel.title.setAttribute('aria-label', preview ? (panel.state.collapsed ? 'Restore ' : 'Focus ') + panel.label : panel.label);
+  }
+  updatePanelLabels();
+}
+
+function useOverview(enabled) {
+  overview = enabled;
+  $('overview-toggle').setAttribute('aria-pressed', String(overview));
+  $('overview-toggle').textContent = overview ? '3D Scene' : 'Overview';
+  $('scene-help').textContent = overview ? 'Select an app to restore its window.' : 'Drag or pinch the focused window’s title bar.';
+  layoutPanels();
 }
 
 function setExpanded(id, expanded) {
   const panel = panels[id];
   if (expanded) {
-    focusPanel(id);
     if (panel.state.collapsed) {
       panel.state.collapsed = false;
       updatePanel(panel);
       persist();
     }
+    focusPanel(id);
   }
   expandedPanel = expanded ? id : null;
   panel.node.toggleAttribute('data-expanded', expanded);
@@ -335,13 +365,13 @@ function beginGesture(panel) {
 function connectGestures(panel) {
   const { title, pointers, id, state } = panel;
   title.addEventListener('pointerdown', event => {
-    if (event.button !== 0 || pointers.size >= 2 || expandedPanel === id) return;
+    if (event.button !== 0 || pointers.size >= 2 || expandedPanel === id || activePanel !== id || overview) return;
     if (panel.frame) {
       cancelAnimationFrame(panel.frame);
       moveGesture(panel);
     }
-    focusPanel(id);
     pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    panel.node.setAttribute('data-gesturing', '');
     title.setPointerCapture(event.pointerId);
     beginGesture(panel);
   });
@@ -361,6 +391,7 @@ function connectGestures(panel) {
     pointers.delete(event.pointerId);
     if (pointers.size) beginGesture(panel);
     else {
+      panel.node.removeAttribute('data-gesturing');
       state.scale = clamp(state.scale, .72, 1.5);
       layoutPanels();
       persist();
@@ -392,34 +423,42 @@ function moveGesture(panel) {
 
 function createPanel(id) {
   const label = modules[id].panel || modules[id].name;
+  const labelMarkup = id === 'notifications' ?
+    '<span class="full-label">Notifications</span><span class="short-label">Alerts</span>' : '<span>' + label + '</span>';
   const node = document.createElement('article');
   node.className = 'panel';
   node.setAttribute('aria-label', label);
-  node.innerHTML = `<header class="panel-head"><button class="panel-title" type="button">${icon(modules[id].icon)}<span>${label}</span></button>
-    <button class="panel-control panel-resize" type="button" aria-label="Expand ${label}" title="Expand ${label}" aria-pressed="false"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M9 4H4v5m11-5h5v5M4 15v5h5m11-5v5h-5"/></svg></button>
+  node.innerHTML = `<header class="panel-head"><button class="panel-title" type="button">${icon(modules[id].icon)}${labelMarkup}</button>
+    <div class="panel-chrome"><button class="panel-control panel-resize" type="button" aria-label="Expand ${label}" title="Expand ${label}" aria-pressed="false">${icon('expand')}</button>
     <button class="panel-control" type="button" aria-controls="panel-${id}"></button>
-    <button class="panel-control" type="button" aria-label="Close ${label}" title="Close ${label}">×</button></header>
+    <button class="panel-control" type="button" aria-label="Close ${label}" title="Close ${label}">×</button></div></header>
     <div class="panel-content" id="panel-${id}">${moduleMarkup(id)}</div>`;
   const [title, resize, toggle, close] = node.querySelectorAll('.panel-head button');
   const launcher = document.createElement('button');
   launcher.type = 'button';
   launcher.className = 'quiet';
-  launcher.innerHTML = icon(modules[id].icon) + '<span>' + label + '</span>';
-  const panel = { id, label, node, title, content: node.lastElementChild, resize, toggle, launcher, pointers: new Map(), state: initialPanelState(id) };
+  launcher.innerHTML = icon(modules[id].icon) + labelMarkup;
+  const panel = { id, label, node, title, content: node.lastElementChild, chrome: node.querySelector('.panel-chrome'),
+    resize, toggle, launcher, pointers: new Map(), state: initialPanelState(id) };
   panels[id] = panel;
   $('windows').append(node);
   $('panel-launcher').append(launcher);
-  node.addEventListener('pointerdown', () => focusPanel(id));
-  node.addEventListener('focusin', () => focusPanel(id));
-  title.addEventListener('click', () => focusPanel(id));
+  title.addEventListener('click', () => {
+    if (activePanel !== id || panel.state.collapsed) openPanel(id);
+  });
   resize.addEventListener('click', () => {
     setExpanded(id, expandedPanel !== id);
     node.scrollIntoView({ block: 'nearest' });
   });
   toggle.addEventListener('click', () => {
+    if (panel.state.collapsed) {
+      openPanel(id);
+      return;
+    }
     if (expandedPanel === id) setExpanded(id, false);
-    panel.state.collapsed = !panel.state.collapsed;
+    panel.state.collapsed = true;
     updatePanel(panel);
+    if (!overview) launcher.focus({ preventScroll: true });
     persist();
   });
   close.addEventListener('click', () => {
@@ -430,24 +469,76 @@ function createPanel(id) {
     launcher.focus();
     persist();
   });
-  launcher.addEventListener('click', () => {
-    panel.state.closed = false;
-    panel.state.collapsed = false;
-    updatePanel(panel);
-    focusPanel(id);
-    title.focus({ preventScroll: true });
-    node.scrollIntoView({ block: 'nearest' });
-    persist();
-  });
+  launcher.addEventListener('click', () => openPanel(id));
   updatePanel(panel);
   connectGestures(panel);
 }
 
-$('applications').innerHTML = Object.entries(modules).map(([id, app]) =>
-  `<button type="button" class="tile glass" data-route="${id}"><span class="tile-icon">${icon(app.icon)}</span>
-    <span><strong>${app.name}</strong><small>${app.caption}</small></span></button>`
+function openPanel(id) {
+  const panel = panels[id];
+  panel.state.closed = false;
+  panel.state.collapsed = false;
+  updatePanel(panel);
+  focusPanel(id);
+  panel.title.focus({ preventScroll: true });
+  if (overview) panel.node.scrollIntoView({ block: 'nearest' });
+  persist();
+}
+
+function mountCores(root) {
+  const template = $('core-template');
+  root.querySelectorAll('[data-core]').forEach(node => node.append(template.content.cloneNode(true)));
+}
+
+function toggleCore(open, restoreFocus = false) {
+  const trigger = $('core-toggle');
+  $('core-launcher').hidden = !open;
+  trigger.setAttribute('aria-expanded', String(open));
+  if (open) $('quick-applications').firstElementChild.focus();
+  else if (restoreFocus) trigger.focus();
+}
+
+function connectCore() {
+  const trigger = $('core-toggle');
+  let frame;
+  let rect;
+  let point;
+  function move(event) {
+    if (!preferences.motion || reducedMotion.matches || (event.pointerType === 'touch' && !event.buttons)) return;
+    rect ??= trigger.getBoundingClientRect();
+    point = { x: event.clientX, y: event.clientY };
+    if (frame) return;
+    frame = requestAnimationFrame(() => {
+      frame = 0;
+      const intensity = preferences.sensitivity * .34;
+      trigger.style.setProperty('--pitch', clamp(.5 - (point.y - rect.top) / rect.height, -.5, .5) * intensity + 'deg');
+      trigger.style.setProperty('--yaw', clamp((point.x - rect.left) / rect.width - .5, -.5, .5) * intensity + 'deg');
+    });
+  }
+  function resetPose() {
+    if (frame) cancelAnimationFrame(frame);
+    frame = 0;
+    rect = null;
+    trigger.style.removeProperty('--pitch');
+    trigger.style.removeProperty('--yaw');
+  }
+  trigger.addEventListener('pointerdown', move);
+  trigger.addEventListener('pointermove', move);
+  for (const event of ['pointerleave', 'pointerup', 'pointercancel']) trigger.addEventListener(event, resetPose);
+  trigger.addEventListener('click', () => toggleCore($('core-launcher').hidden, true));
+  $('core-close').addEventListener('click', () => toggleCore(false, true));
+}
+
+const launcherMarkup = Object.entries(modules).map(([id, app]) =>
+  `<button type="button" class="tile" data-route="${id}"><span class="tile-icon">${icon(app.icon)}</span><strong>${app.name}</strong></button>`
 ).join('');
+$('applications').innerHTML = launcherMarkup;
+$('quick-applications').innerHTML = launcherMarkup;
+mountCores(document);
+connectCore();
 windowOrder.forEach(createPanel);
+if (Object.hasOwn(panels, saved.focus)) activePanel = saved.focus;
+useOverview(overview);
 applyPreferences();
 navigate(location.hash.slice(1) || preferences.mode, false);
 if ('ResizeObserver' in window) {
@@ -468,6 +559,9 @@ document.addEventListener('visibilitychange', () => {
   document.body.toggleAttribute('data-page-hidden', document.hidden);
   syncClock();
 });
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && !$('core-launcher').hidden) toggleCore(false, true);
+});
 window.addEventListener('popstate', () => navigate(location.hash.slice(1) || returnRoute));
 window.addEventListener('online', updateStatus);
 window.addEventListener('offline', updateStatus);
@@ -476,6 +570,10 @@ standalone.addEventListener?.('change', updateStatus);
 reducedMotion.addEventListener?.('change', () => { if (reducedMotion.matches) finishIntro(); });
 $('skip').addEventListener('click', finishIntro);
 $('back').addEventListener('click', () => openRoute(returnRoute));
+$('overview-toggle').addEventListener('click', () => {
+  useOverview(!overview);
+  persist();
+});
 document.addEventListener('click', event => {
   const button = event.target.closest('button');
   if (!button) return;
@@ -503,9 +601,33 @@ document.addEventListener('click', event => {
       if (reset) Object.assign(panel.state, { collapsed: false, closed: false });
       updatePanel(panel);
     });
+    if (reset) focusPanel('clock');
+    const menu = $('workspace-menu');
+    if (menu.open) {
+      menu.open = false;
+      menu.querySelector('summary').focus();
+    }
     stage.style.removeProperty('--parallax');
     persist();
     $('announcement').textContent = reset ? 'Workspace reset.' : 'Windows arranged.';
+  }
+  if (button.dataset.action === 'cycle') {
+    const index = windowOrder.indexOf(activePanel);
+    for (let step = 1; step <= windowOrder.length; step++) {
+      const id = windowOrder[(index + step) % windowOrder.length];
+      if (!panels[id].state.closed) { openPanel(id); break; }
+    }
+  }
+  if (button.dataset.action === 'defaults') {
+    Object.assign(preferences, visualDefaults);
+    $('motion').checked = preferences.motion;
+    for (const key of Object.keys(sliders)) {
+      $(key).value = preferences[key];
+      $(key + '-value').textContent = preferences[key] + '%';
+    }
+    applyPreferences();
+    persist();
+    $('announcement').textContent = 'Visual defaults restored.';
   }
   if (button.dataset.action === 'replay') startIntro();
 });
