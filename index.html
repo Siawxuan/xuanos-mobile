@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#060d16">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>XuanOS Mobile 4.0 — Spatial Edition</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="mark.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="touch-icon.png">
+  <link rel="stylesheet" href="mobile.css">
+  <script src="mobile.js" defer></script>
+</head>
+<body>
+  <svg xmlns="http://www.w3.org/2000/svg" class="symbols" aria-hidden="true">
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10H3zM9 20v-6h6v6"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="M5 16h14l-2-3V9a5 5 0 0 0-10 0v4zM10 20h4"/></symbol>
+    <symbol id="i-spatial" viewBox="0 0 24 24"><path d="m12 2 9 5v10l-9 5-9-5V7zM3 7l9 5 9-5m-9 5v10"/></symbol>
+    <symbol id="i-ai" viewBox="0 0 24 24"><path d="m12 3 2.6 6.4L21 12l-6.4 2.6L12 21l-2.6-6.4L3 12l6.4-2.6z"/><circle cx="19" cy="5" r="1"/></symbol>
+    <symbol id="i-status" viewBox="0 0 24 24"><path d="M3 13h4l3-7 4 12 3-5h4"/><rect x="2" y="3" width="20" height="18" rx="4"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/><path class="knob" d="M8 6h.01m7 6h.01m-5 6h.01" stroke-width="6"/></symbol>
+  </svg>
+  <div class="boot" id="boot" hidden>
+    <div class="boot-art" aria-hidden="true">
+      <div class="energy"></div><div class="pulse"></div>
+      <img class="boot-orbit" src="orbit.svg" alt="">
+      <img class="boot-mark" src="mark.svg" alt="">
+    </div>
+    <div class="boot-copy"><strong>XuanOS</strong><span>SPATIAL SYSTEM INITIALIZING</span></div>
+    <button class="quiet skip" type="button" id="skip">Skip Intro</button>
+  </div>
+  <div id="shell" class="shell">
+    <header class="masthead">
+      <div class="brand"><img src="mark.svg" alt=""><div><strong>XuanOS <span>Mobile 4.0</span></strong><small>SPATIAL EDITION</small></div></div>
+      <span class="system-pill"><i></i><span id="network-badge">Checking connection</span></span>
+    </header>
+    <main>
+      <section id="home" aria-label="Mobile Home">
+        <div class="hero glass">
+          <div class="hero-copy">
+            <p class="eyebrow" id="home-date"></p>
+            <h1 class="hero-clock"><time id="home-clock"></time><span id="home-period"></span></h1>
+            <button type="button" class="primary" data-route="spatial"><svg class="icon" aria-hidden="true"><use href="#i-spatial"/></svg> Open Spatial Workspace</button>
+          </div>
+          <div class="reactor" aria-hidden="true">
+            <img class="orbit" src="orbit.svg" alt="">
+            <img class="reactor-mark" src="mark.svg" alt="">
+          </div>
+        </div>
+        <h2 class="section-heading">Applications</h2>
+        <div class="applications" id="applications"></div>
+      </section>
+      <section id="spatial" aria-labelledby="spatial-title" hidden>
+        <header class="spatial-header">
+          <div><h1 id="spatial-title" tabindex="-1">Spatial Workspace</h1><p>Drag a title to move its panel. Pinch a title to resize.</p></div>
+        </header>
+        <div class="stage glass" id="stage" aria-label="Spatial panels">
+          <div class="reactor stage-core" aria-hidden="true">
+            <img class="orbit" src="orbit.svg" alt=""><img class="reactor-mark" src="mark.svg" alt="">
+          </div>
+          <div id="windows"></div>
+        </div>
+        <div class="panel-launcher" id="panel-launcher" aria-label="Focus or reopen a panel"></div>
+      </section>
+      <section id="detail" aria-labelledby="detail-title" hidden>
+        <button type="button" class="quiet back" id="back">Back</button>
+        <article class="detail glass">
+          <div id="detail-icon"></div>
+          <h1 id="detail-title" tabindex="-1"></h1>
+          <div id="detail-content"></div>
+        </article>
+      </section>
+    </main>
+    <nav class="dock glass" aria-label="Main navigation">
+      <button type="button" data-route="home"><svg class="icon" aria-hidden="true"><use href="#i-home"/></svg>Home</button>
+      <button type="button" data-route="spatial"><svg class="icon" aria-hidden="true"><use href="#i-spatial"/></svg>Spatial Mode</button>
+      <button type="button" data-route="settings"><svg class="icon" aria-hidden="true"><use href="#i-settings"/></svg>Settings</button>
+    </nav>
+  </div>
+  <p id="announcement" class="sr-only" role="status"></p>
+  <noscript><p class="script-message">Enable JavaScript to open XuanOS Mobile.</p></noscript>
+</body>
+</html>

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="metal" x2=".8" y2="1">
+      <stop stop-color="#7596ac"/><stop offset=".28" stop-color="#edfaff"/><stop offset=".5" stop-color="#a3c8dc"/><stop offset=".53" stop-color="#416780"/><stop offset=".73" stop-color="#90dbef"/><stop offset="1" stop-color="#e0f9ff"/>
+    </linearGradient>
+    <path id="x" d="M80 65h29l19 38 19-38h29l-33 61 35 65h-30l-20-42-20 42H78l35-65z"/>
+  </defs>
+  <use href="#x" transform="translate(0 5)" fill="#102a40" stroke="#355f7c" stroke-width="2"/>
+  <use href="#x" fill="url(#metal)" stroke="#b7ddf3" stroke-width="1.2"/>
+  <path d="M85 68h22l21 41 21-41h22m-90 120 34-61m13 17 22 44h22" fill="none" stroke="#f3fcff" stroke-width="1.6" opacity=".85"/>
+</svg>
